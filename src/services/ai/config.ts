@@ -1,4 +1,10 @@
-import { AIConfig } from './types';
+import * as dotenv from 'dotenv';
+import type { AIConfig } from './types';
+
+// Load environment variables in Node.js environment
+if (typeof window === 'undefined') {
+  dotenv.config();
+}
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
@@ -19,12 +25,21 @@ const ENV_VARS = {
   },
 } as const;
 
+function getEnvVar(name: string): string | undefined {
+  // Check if we're in a browser environment
+  if (typeof window !== 'undefined') {
+    return (window as any)?.__env?.[name] || (import.meta as any)?.env?.[name];
+  }
+  // Node.js environment
+  return process.env[name];
+}
+
 function validateEnvVars(provider: 'LATIMER' | 'PERPLEXITY' | 'DEEPSEEK'): void {
   const missingVars = [];
   const vars = ENV_VARS[provider];
 
   for (const [key, envVar] of Object.entries(vars)) {
-    if (!import.meta.env[envVar]) {
+    if (!getEnvVar(envVar)) {
       missingVars.push(key);
     }
   }
@@ -41,8 +56,8 @@ export function getProviderConfig(provider: 'latimer' | 'perplexity' | 'deepseek
   validateEnvVars(upperProvider);
 
   const vars = ENV_VARS[upperProvider];
-  const baseUrl = import.meta.env[vars.BASE_URL] as string;
-  const apiKey = import.meta.env[vars.API_KEY] as string;
+  const baseUrl = getEnvVar(vars.BASE_URL);
+  const apiKey = getEnvVar(vars.API_KEY);
 
   if (!apiKey || !baseUrl) {
     throw new Error(`Missing configuration for ${provider}`);
@@ -63,7 +78,12 @@ export function getProviderConfig(provider: 'latimer' | 'perplexity' | 'deepseek
   };
 }
 
-if (import.meta.env.DEV) {
+// Log configuration in development
+const isDev = typeof window !== 'undefined' 
+  ? (window as any)?.__env?.NODE_ENV === 'development' || (import.meta as any)?.env?.DEV
+  : process.env.NODE_ENV === 'development';
+
+if (isDev) {
   console.log('Checking AI provider configurations...');
   try {
     const providers = ['latimer', 'perplexity', 'deepseek'] as const;

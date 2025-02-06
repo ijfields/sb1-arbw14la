@@ -32,7 +32,7 @@ function App() {
     if (!isValid) {
       console.error('Configuration validation failed:', issues);
       setConnectionStatus('error');
-      setError(`Invalid configuration: ${issues.join(', ')}`);
+      setError('Missing Supabase configuration. Please make sure your environment variables are set correctly.');
       return;
     }
     
@@ -41,7 +41,7 @@ function App() {
     if (!envStatus.VITE_SUPABASE_URL || !envStatus.VITE_SUPABASE_ANON_KEY) {
       console.error('Missing environment variables:', envStatus);
       setConnectionStatus('error');
-      setError('Missing Supabase configuration. Please click the "Connect to Supabase" button in the top right corner.');
+      setError('Missing Supabase configuration. Please make sure your environment variables are set correctly.');
       return;
     }
 
@@ -55,7 +55,7 @@ function App() {
     } else {
       console.error('Connection failed:', connectionError);
       setConnectionStatus('error');
-      setError(connectionError || 'Failed to connect to database. Please ensure you are connected to Supabase.');
+      setError(connectionError || 'Failed to connect to database. Please check your Supabase configuration.');
     }
   };
 
@@ -188,7 +188,7 @@ function App() {
               </button>
             </div>
             <p className="text-sm text-gray-500 mt-4 text-center">
-              If the problem persists, please click the "Connect to Supabase" button in the top right corner.
+              If the problem persists, please check your environment variables configuration.
             </p>
           </div>
         </main>
