@@ -41,7 +41,6 @@ Please format your response with clear sections and end with an explicit rating 
           throw new Error('Invalid response format');
         }
 
-        // The Latimer API returns the response in the message.content field
         const assessmentText = data.message?.content || data.text || data.completion || data.response;
         if (!assessmentText || typeof assessmentText !== 'string') {
           console.error('Invalid Latimer response:', data);
@@ -55,12 +54,57 @@ Please format your response with clear sections and end with an explicit rating 
           metadata: {
             model: 'latimer',
             processingTime: data.processing_time,
-            raw: data // Store raw response for debugging
+            raw: data
           },
         };
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Latimer assessment error:', errorMessage);
+        throw error;
+      }
+    });
+  }
+
+  async assessWithFile(formData: FormData): Promise<AssessmentResponse> {
+    if (!this.isInitialized()) {
+      throw new Error('Latimer service not initialized');
+    }
+
+    return this.retryWithBackoff(async () => {
+      try {
+        console.log('Making Latimer API file-based request...');
+        
+        const response = await proxyRequest('latimer', 'analyzeDocument', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+        
+        if (!data || typeof data !== 'object') {
+          throw new Error('Invalid response format');
+        }
+
+        const assessmentText = data.message?.content || data.text || data.completion || data.response;
+        if (!assessmentText || typeof assessmentText !== 'string') {
+          console.error('Invalid Latimer response:', data);
+          throw new Error('No assessment text in response');
+        }
+
+        return {
+          text: assessmentText,
+          rating: this.analyzeResponse(assessmentText),
+          confidence: 0.9, // Higher confidence for file-based analysis
+          metadata: {
+            model: 'latimer',
+            processingTime: data.processing_time,
+            usage: data.usage,
+            raw: data
+          },
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Latimer file assessment error:', errorMessage);
         throw error;
       }
     });

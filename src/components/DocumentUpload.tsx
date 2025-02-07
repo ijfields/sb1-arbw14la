@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, FileText, AlertCircle, X } from 'lucide-react';
 import { uploadPolicyDocument } from '../services/documentService';
+import type { PolicyType } from '../services/assessmentService';
 
 interface DocumentUploadProps {
   onUploadComplete: () => void;
@@ -9,7 +10,7 @@ interface DocumentUploadProps {
 export function DocumentUpload({ onUploadComplete }: DocumentUploadProps) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
-  const [type, setType] = useState('project2025');
+  const [type, setType] = useState<PolicyType>('project2025');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number>(0);
@@ -79,6 +80,9 @@ export function DocumentUpload({ onUploadComplete }: DocumentUploadProps) {
       clearInterval(progressInterval);
 
       if (!result.success) {
+        if (result.error?.includes('request entity too large')) {
+          throw new Error('File is too large for processing. Please try a smaller file or split the document.');
+        }
         throw new Error(result.error || 'Failed to upload document');
       }
 
@@ -112,14 +116,16 @@ export function DocumentUpload({ onUploadComplete }: DocumentUploadProps) {
           <label className="block text-sm font-medium text-gray-700">Document Type</label>
           <select
             value={type}
-            onChange={(e) => setType(e.target.value)}
+            onChange={(e) => setType(e.target.value as PolicyType)}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
             disabled={loading}
           >
             <option value="project2025">Project 2025</option>
             <option value="agenda47">Agenda 47</option>
-            <option value="peoples_response">People's Response</option>
             <option value="attack_on_power">Attack on our Power</option>
+            <option value="peoples_response">People's Response</option>
+            <option value="contract_black_america">Contract with Black America</option>
+            <option value="harris_economic_plan">Harris's Economic Plan for Black Men</option>
           </select>
         </div>
 

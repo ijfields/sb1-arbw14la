@@ -3,13 +3,18 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-console.log('Initializing Supabase with:', {
+// Add more detailed initialization logging
+console.log('Starting Supabase initialization...', {
   hasUrl: !!supabaseUrl,
   hasKey: !!supabaseAnonKey,
   url: supabaseUrl?.substring(0, 10) + '...' // Log partial URL for debugging
 });
 
 if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables:', {
+    url: !!supabaseUrl,
+    key: !!supabaseAnonKey
+  });
   throw new Error('Missing Supabase environment variables. Please ensure you have connected to Supabase.');
 }
 
@@ -31,7 +36,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 // Test the connection with retries
 export async function testConnection(retries = 3): Promise<{ success: boolean; error?: string }> {
-  console.log('Testing Supabase connection...');
+  console.log('Testing Supabase connection...', {
+    url: supabaseUrl?.substring(0, 10) + '...',
+    retries
+  });
   
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {

@@ -1,5 +1,7 @@
 export type AIProvider = 'latimer' | 'perplexity' | 'deepseek';
 
+export type PerplexityModel = 'sonar-reasoning-pro' | 'sonar-reasoning' | 'sonar-pro' | 'sonar';
+
 export interface AIConfig {
   apiKey: string;
   baseUrl: string;
@@ -8,6 +10,7 @@ export interface AIConfig {
   features?: {
     enableDeepseek?: boolean;
   };
+  model?: PerplexityModel;
 }
 
 export interface AssessmentRequest {
@@ -15,6 +18,7 @@ export interface AssessmentRequest {
   policyDocumentText: string;
   maxTokens?: number;
   temperature?: number;
+  model?: PerplexityModel;
 }
 
 export interface AssessmentResponse {
@@ -27,5 +31,6 @@ export interface AssessmentResponse {
 export interface AIService {
   initialize(config: AIConfig): Promise<void>;
   assess(request: AssessmentRequest): Promise<AssessmentResponse>;
+  assessWithFile?(formData: FormData): Promise<AssessmentResponse>;
   isInitialized(): boolean;
 }

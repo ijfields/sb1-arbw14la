@@ -1,6 +1,6 @@
 # Executive Policy Tracker
 
-## Version: 0.1.0
+## Version: 0.2.1
 
 A comprehensive tool for tracking and analyzing executive orders and their impact on policy proposals.
 
@@ -14,8 +14,8 @@ A comprehensive tool for tracking and analyzing executive orders and their impac
 
 ## AI Provider Status
 
-- ✅ Latimer API: Fully operational
-- ✅ Perplexity API: Fully operational
+- ✅ Perplexity API: Fully operational with chunking support for large documents
+- ⚠️ Latimer API: Limited to text-only assessments (file processing not supported)
 - ⏸️ DeepSeek API: Temporarily disabled (see [ISSUES.md](./ISSUES.md))
 
 ## Getting Started
@@ -65,7 +65,7 @@ We follow the [Conventional Commits](https://www.conventionalcommits.org/) speci
 
 Example:
 ```
-feat(ai): add Perplexity API integration
+feat(ai): add Perplexity API chunking support
 ```
 
 ### Release Process

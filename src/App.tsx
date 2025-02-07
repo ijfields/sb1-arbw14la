@@ -144,6 +144,13 @@ function App() {
   };
 
   useEffect(() => {
+    // Add immediate environment check
+    console.log('Checking environment variables:', {
+      hasSupabaseUrl: !!import.meta.env.VITE_SUPABASE_URL,
+      hasSupabaseKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+      nodeEnv: import.meta.env.MODE
+    });
+    
     checkConnection();
   }, []);
 

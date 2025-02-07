@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feature Discussion
+    url: https://github.com/your-repo/discussions
+    about: Discuss new features before creating an issue
+  - name: Documentation
+    url: https://github.com/your-repo/wiki
+    about: Check existing documentation first
