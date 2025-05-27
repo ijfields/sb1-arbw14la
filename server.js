@@ -6,6 +6,7 @@ import fs from 'fs';
 import * as dotenv from 'dotenv';
 import { createServer } from 'http';
 import os from 'os';
+import fetch from 'node-fetch';
 
 // Load environment variables
 dotenv.config();
@@ -53,6 +54,31 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     env: process.env.NODE_ENV || 'development'
   });
+});
+
+// Perplexity API proxy endpoint
+app.post('/api/perplexity/chat/completions', async (req, res) => {
+  try {
+    const perplexityUrl = `${process.env.VITE_PERPLEXITY_BASE_URL}/chat/completions`;
+    const response = await fetch(perplexityUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.VITE_PERPLEXITY_API_KEY}`
+      },
+      body: JSON.stringify(req.body)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Perplexity API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Perplexity proxy error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Test if server can bind to port
