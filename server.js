@@ -18,9 +18,24 @@ const port = 3000;
 // Get the directory name of the current module
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Middleware setup with increased payload limit
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Middleware setup with increased payload limit and error handling
+app.use(express.json({
+  limit: '50mb',
+  verify: (req, res, buf) => {
+    try {
+      JSON.parse(buf);
+    } catch (e) {
+      res.status(400).json({ error: 'Invalid JSON' });
+      throw new Error('Invalid JSON');
+    }
+  }
+}));
+
+app.use(express.urlencoded({
+  extended: true,
+  limit: '50mb'
+}));
+
 app.use(cors({
   origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
   credentials: true,
