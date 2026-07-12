@@ -1,11 +1,8 @@
 import * as pdfjs from 'pdfjs-dist';
 import { TextItem } from 'pdfjs-dist/types/src/display/api';
-
-// Set worker source path
-const workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url
-).toString();
+// Vite resolves ?url imports through node_modules and emits the worker as an
+// asset; a bare specifier in new URL(..., import.meta.url) would not resolve.
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.js?url';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
 
@@ -38,7 +35,8 @@ export async function extractTextFromPDF(pdfData: Uint8Array): Promise<string> {
       
       // Extract and join text items
       const pageText = textContent.items
-        .map((item: TextItem) => item.str)
+        .filter((item): item is TextItem => 'str' in item)
+        .map(item => item.str)
         .join(' ')
         .trim();
       
