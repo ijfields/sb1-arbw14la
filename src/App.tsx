@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Header } from './components/Header';
 import { OrderList } from './components/OrderList';
 import { ComparisonView } from './components/ComparisonView';
@@ -51,7 +51,7 @@ function App() {
     if (success) {
       console.log('Connection successful, loading orders...');
       setConnectionStatus('connected');
-      loadExecutiveOrders();
+      loadExecutiveOrders(true);
     } else {
       console.error('Connection failed:', connectionError);
       setConnectionStatus('error');
@@ -76,11 +76,11 @@ function App() {
     return filteredOrders.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredOrders, currentPage]);
 
-  const loadExecutiveOrders = async () => {
+  const loadExecutiveOrders = async (syncIfEmpty = false) => {
     try {
       console.log('Starting to load executive orders...');
       setLoading(true);
-      
+
       const { data, error: fetchError } = await supabase
         .from('executive_orders')
         .select('*')
@@ -94,8 +94,15 @@ function App() {
       console.log('Raw orders data:', data);
 
       if (!data || data.length === 0) {
-        console.log('No orders found, initiating sync...');
-        await handleSync();
+        // Only auto-sync on the initial load; handleSync reloads without
+        // this flag, so an empty result after sync can't loop back here.
+        if (syncIfEmpty) {
+          console.log('No orders found, initiating sync...');
+          await handleSync();
+        } else {
+          setOrders([]);
+          setError(null);
+        }
         return;
       }
 
@@ -131,7 +138,10 @@ function App() {
     try {
       setSyncing(true);
       console.log('Starting sync...');
-      await syncOrders();
+      const result = await syncOrders();
+      if (!result.success) {
+        throw new Error(result.message || 'Sync failed');
+      }
       await loadExecutiveOrders();
       setCurrentPage(1);
       console.log('Sync completed');
