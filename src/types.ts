@@ -26,7 +26,7 @@ export interface ExecutiveOrder {
 
 export interface PolicyProposal {
   id: string;
-  source: 'Project2025' | 'Agenda45';
+  source: 'Project2025' | 'Agenda47';
   title: string;
   category: string;
   summary: string;

@@ -6,7 +6,7 @@ import type { ExecutiveOrder } from '../types';
 import { testAIService } from '../services/ai/test';
 import type { AIProvider } from '../services/ai/types';
 import { supabase } from '../lib/supabase';
-import { getPolicyDocuments } from '../services/documentService';
+import { getLatestPolicyDocuments } from '../services/documentService';
 import { queueAssessment, processQueue } from '../services/queueService';
 
 interface AssessmentViewProps {
@@ -67,17 +67,9 @@ export function AssessmentView({ executiveOrder }: AssessmentViewProps) {
     let active = true;
     (async () => {
       try {
-        const docs = await getPolicyDocuments();
+        const docs = await getLatestPolicyDocuments();
         if (active && docs) {
-          // The table holds duplicate uploads per type; getPolicyDocuments
-          // orders by created_at desc, so keep only the newest of each type.
-          const latestPerType = new Map<string, PolicyDocumentOption>();
-          for (const doc of docs as PolicyDocumentOption[]) {
-            if (!latestPerType.has(doc.document_type)) {
-              latestPerType.set(doc.document_type, doc);
-            }
-          }
-          setDocuments([...latestPerType.values()]);
+          setDocuments(docs as PolicyDocumentOption[]);
         }
       } catch (error) {
         console.error('Failed to load policy documents:', error);

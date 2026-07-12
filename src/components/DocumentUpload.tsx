@@ -118,7 +118,9 @@ export function DocumentUpload({ onUploadComplete }: DocumentUploadProps) {
           >
             <option value="project2025">Project 2025</option>
             <option value="agenda47">Agenda 47</option>
-            <option value="peoples_response">People's Response</option>
+            <option value="peoples_guide">People's Guide to Project 2025 (critique)</option>
+            <option value="contract_black_america">Contract with Black America</option>
+            <option value="harris_economic_plan">Harris Economic Plan</option>
             <option value="attack_on_power">Attack on our Power</option>
           </select>
         </div>

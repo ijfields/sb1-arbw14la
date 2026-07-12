@@ -94,6 +94,19 @@ export async function getPolicyDocuments() {
   return data;
 }
 
+// The table holds duplicate uploads per type; rows arrive newest-first, so
+// the first occurrence of each document_type is the current document.
+export async function getLatestPolicyDocuments() {
+  const docs = await getPolicyDocuments();
+  const latestPerType = new Map<string, (typeof docs)[number]>();
+  for (const doc of docs || []) {
+    if (!latestPerType.has(doc.document_type)) {
+      latestPerType.set(doc.document_type, doc);
+    }
+  }
+  return [...latestPerType.values()];
+}
+
 export async function getPolicyDocumentContent(id: string): Promise<string> {
   const { data, error } = await supabase
     .from('policy_documents')
