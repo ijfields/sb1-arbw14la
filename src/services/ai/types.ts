@@ -1,8 +1,6 @@
 export type AIProvider = 'latimer' | 'perplexity' | 'deepseek';
 
 export interface AIConfig {
-  apiKey: string;
-  baseUrl: string;
   maxRetries: number;
   timeout: number;
   features?: {

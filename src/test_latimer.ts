@@ -26,15 +26,15 @@ async function waitForServer(retries = 10, delay = 1000): Promise<boolean> {
 
 async function testLatimer() {
   try {
-    const apiKey = process.env.VITE_LATIMER_API_KEY;
-    const baseUrl = process.env.VITE_LATIMER_BASE_URL;
+    const apiKey = process.env.LATIMER_API_KEY;
+    const baseUrl = process.env.LATIMER_BASE_URL;
 
     if (!apiKey) {
-      throw new Error('VITE_LATIMER_API_KEY not found in environment variables');
+      throw new Error('LATIMER_API_KEY not found in environment variables');
     }
 
     if (!baseUrl) {
-      throw new Error('VITE_LATIMER_BASE_URL not found in environment variables');
+      throw new Error('LATIMER_BASE_URL not found in environment variables');
     }
 
     console.log('Testing Latimer API with configuration:', {
@@ -72,11 +72,11 @@ async function testLatimer() {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+      const errorData: any = await response.json().catch(() => ({ message: 'Unknown error' }));
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.message || 'Unknown error'}`);
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     console.log('Latimer API Response:', {
       success: true,
       responsePreview: data.choices?.[0]?.message?.content?.substring(0, 100) || 'No content'
@@ -92,7 +92,7 @@ async function testLatimer() {
 // Run test
 console.log('Starting Latimer API test...');
 testLatimer()
-  .then(result => {
+  .then(() => {
     console.log('Test completed successfully');
     process.exit(0);
   })

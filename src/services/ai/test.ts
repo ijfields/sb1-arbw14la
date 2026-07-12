@@ -15,8 +15,6 @@ export async function testAIService(provider: 'latimer' | 'perplexity' | 'deepse
   try {
     const config = getProviderConfig(provider);
     console.log(`${provider} configuration loaded:`, {
-      baseUrl: config.baseUrl,
-      hasApiKey: !!config.apiKey,
       enabled: provider !== 'deepseek' || config.features?.enableDeepseek
     });
 

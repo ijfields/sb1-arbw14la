@@ -16,17 +16,6 @@ export abstract class BaseAIService implements AIService {
   }
 
   protected validateConfig(config: AIConfig): void {
-    if (!config.apiKey) {
-      throw new Error('API key is required');
-    }
-    if (!config.baseUrl) {
-      throw new Error('Base URL is required');
-    }
-    try {
-      new URL(config.baseUrl);
-    } catch {
-      throw new Error('Invalid base URL format');
-    }
     if (config.maxRetries < 0) {
       throw new Error('Max retries must be non-negative');
     }

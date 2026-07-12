@@ -47,8 +47,8 @@ const validateProvider = (req, res, next) => {
 // Middleware to validate API configuration
 const validateApiConfig = (req, res, next) => {
   const { provider } = req.params;
-  const apiKey = process.env[`VITE_${provider.toUpperCase()}_API_KEY`];
-  const baseUrl = process.env[`VITE_${provider.toUpperCase()}_BASE_URL`];
+  const apiKey = process.env[`${provider.toUpperCase()}_API_KEY`];
+  const baseUrl = process.env[`${provider.toUpperCase()}_BASE_URL`];
 
   if (!apiKey || !baseUrl) {
     console.error(`Missing ${provider} configuration:`, {
@@ -293,19 +293,19 @@ server.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
   console.log('Environment check:', {
     LATIMER_CONFIG: {
-      hasApiKey: !!process.env.VITE_LATIMER_API_KEY,
-      hasBaseUrl: !!process.env.VITE_LATIMER_BASE_URL,
-      baseUrl: process.env.VITE_LATIMER_BASE_URL
+      hasApiKey: !!process.env.LATIMER_API_KEY,
+      hasBaseUrl: !!process.env.LATIMER_BASE_URL,
+      baseUrl: process.env.LATIMER_BASE_URL
     },
     PERPLEXITY_CONFIG: {
-      hasApiKey: !!process.env.VITE_PERPLEXITY_API_KEY,
-      hasBaseUrl: !!process.env.VITE_PERPLEXITY_BASE_URL,
-      baseUrl: process.env.VITE_PERPLEXITY_BASE_URL
+      hasApiKey: !!process.env.PERPLEXITY_API_KEY,
+      hasBaseUrl: !!process.env.PERPLEXITY_BASE_URL,
+      baseUrl: process.env.PERPLEXITY_BASE_URL
     },
     DEEPSEEK_CONFIG: {
-      hasApiKey: !!process.env.VITE_DEEPSEEK_API_KEY,
-      hasBaseUrl: !!process.env.VITE_DEEPSEEK_BASE_URL,
-      baseUrl: process.env.VITE_DEEPSEEK_BASE_URL
+      hasApiKey: !!process.env.DEEPSEEK_API_KEY,
+      hasBaseUrl: !!process.env.DEEPSEEK_BASE_URL,
+      baseUrl: process.env.DEEPSEEK_BASE_URL
     }
   });
 });

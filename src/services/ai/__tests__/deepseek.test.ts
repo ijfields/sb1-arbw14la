@@ -10,8 +10,6 @@ describe('DeepSeekService', () => {
 
   beforeEach(() => {
     config = {
-      apiKey: 'test-key',
-      baseUrl: 'http://localhost:3000',
       maxRetries: 3,
       timeout: 5000
     };
@@ -33,12 +31,6 @@ describe('DeepSeekService', () => {
 
   it('should throw error if not initialized', async () => {
     await expect(service.assess(request)).rejects.toThrow('DeepSeek service not initialized');
-  });
-
-  it('should fail without API key', async () => {
-    config.apiKey = '';
-    await service.initialize(config);
-    await expect(service.assess(request)).rejects.toThrow('Authentication failed: Invalid API key');
   });
 
   it('should assess documents successfully with valid API key', async () => {

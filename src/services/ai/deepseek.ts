@@ -19,7 +19,6 @@ export class DeepSeekService extends BaseAIService {
             'Accept': 'application/json'
           },
           body: JSON.stringify({
-            api_key: this.config?.apiKey,
             model: "deepseek-chat",
             messages: [{
               role: "system",

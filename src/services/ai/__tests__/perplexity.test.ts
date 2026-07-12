@@ -10,8 +10,6 @@ describe('PerplexityService', () => {
 
   beforeEach(() => {
     config = {
-      apiKey: 'test-key',
-      baseUrl: 'http://localhost:3000',
       maxRetries: 3,
       timeout: 5000
     };
