@@ -37,7 +37,9 @@ ${request.policyDocumentText}
 Provide a concise analysis focusing on:
 1. Alignment (how well they align)
 2. Impact (potential effects)
-3. Rating (explicitly state if positive, negative, or neutral)`
+3. Rating (explicitly state if positive, negative, or neutral)
+
+End your response with a final line formatted exactly as "Rating: positive", "Rating: negative", or "Rating: neutral".`
               }
             ],
             temperature: request.temperature || 0.1,
@@ -54,12 +56,12 @@ Provide a concise analysis focusing on:
         }
 
         const content = data.choices[0].message.content;
-        const rating = this.analyzeResponse(content);
+        const { rating, confidence } = this.analyzeAssessment(content);
 
         return {
           text: content,
           rating,
-          confidence: this.calculateConfidence(content),
+          confidence,
           metadata: {
             model: 'sonar',
             usage: data.usage,
@@ -71,62 +73,5 @@ Provide a concise analysis focusing on:
         throw error;
       }
     });
-  }
-
-  private analyzeResponse(text: string): AssessmentResponse['rating'] {
-    const normalized = text.toLowerCase();
-    
-    // First check for explicit rating
-    if (normalized.includes('rating: positive') || 
-        normalized.includes('rating:positive')) {
-      return 'positive';
-    }
-    if (normalized.includes('rating: negative') || 
-        normalized.includes('rating:negative')) {
-      return 'negative';
-    }
-    if (normalized.includes('rating: neutral') || 
-        normalized.includes('rating:neutral')) {
-      return 'neutral';
-    }
-
-    // Fall back to sentiment analysis
-    const positiveTerms = ['align', 'support', 'complement', 'reinforce', 'positive'];
-    const negativeTerms = ['conflict', 'oppose', 'contradict', 'negative', 'misalign'];
-    
-    let positiveScore = 0;
-    let negativeScore = 0;
-    
-    positiveTerms.forEach(term => {
-      const matches = normalized.match(new RegExp(term, 'g'));
-      if (matches) positiveScore += matches.length;
-    });
-    
-    negativeTerms.forEach(term => {
-      const matches = normalized.match(new RegExp(term, 'g'));
-      if (matches) negativeScore += matches.length;
-    });
-    
-    if (positiveScore > negativeScore) return 'positive';
-    if (negativeScore > positiveScore) return 'negative';
-    return 'neutral';
-  }
-
-  private calculateConfidence(text: string): number {
-    let confidence = 0.7; // Base confidence
-
-    // Increase confidence based on analysis completeness
-    if (text.includes('Alignment:')) confidence += 0.1;
-    if (text.includes('Impact:')) confidence += 0.1;
-    if (text.includes('Rating:')) confidence += 0.1;
-
-    // Decrease confidence for uncertainty markers
-    const uncertaintyTerms = ['maybe', 'perhaps', 'unclear', 'uncertain', 'possible'];
-    uncertaintyTerms.forEach(term => {
-      if (text.toLowerCase().includes(term)) confidence -= 0.05;
-    });
-
-    // Ensure confidence stays within valid range
-    return Math.max(0.1, Math.min(1.0, confidence));
   }
 }

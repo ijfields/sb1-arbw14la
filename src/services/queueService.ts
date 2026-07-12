@@ -19,6 +19,7 @@ interface ExecutiveOrderRow {
   id: string;
   title: string;
   summary: string | null;
+  federal_register_id: string | null;
 }
 
 interface PolicyDocumentRow {
@@ -33,6 +34,7 @@ interface AIAssessmentRow {
 
 // Truncation limits to keep prompts sane
 const MAX_EO_CHARS = 4000;
+const MAX_EO_FULLTEXT_CHARS = 12000;
 const MAX_POLICY_CHARS = 12000;
 
 const MAX_RETRIES = 3;
@@ -241,23 +243,65 @@ function truncate(text: string, max: number): string {
   return text.slice(0, max) + '...[truncated]';
 }
 
+// The Federal Register `abstract` (stored as `summary`) is almost always empty
+// for executive orders, so a title-only prompt gives the model nothing to work
+// with. When the order has a Federal Register document number, fetch its full
+// text via the server proxy (the .txt endpoint has no CORS headers, so the
+// browser can't reach it directly). Fall back to title + summary on any failure.
+async function buildExecutiveOrderText(order: ExecutiveOrderRow): Promise<string> {
+  if (order.federal_register_id) {
+    try {
+      const response = await fetch(`/api/eo-fulltext/${order.federal_register_id}`);
+      if (response.ok) {
+        const data = await response.json();
+        const fullText = typeof data?.text === 'string' ? data.text.trim() : '';
+        if (fullText) {
+          console.log(
+            `Using full text for EO ${order.federal_register_id} (${fullText.length} chars)`
+          );
+          return truncate(
+            `Title: ${order.title ?? ''}\n\nFull text: ${fullText}`,
+            MAX_EO_FULLTEXT_CHARS
+          );
+        }
+      }
+      console.warn(
+        `Full text unavailable for EO ${order.federal_register_id} (status ${response.status}); falling back to summary`
+      );
+    } catch (error) {
+      console.warn(
+        `Failed to fetch full text for EO ${order.federal_register_id}; falling back to summary:`,
+        error instanceof Error ? error.message : error
+      );
+    }
+  } else {
+    console.log('No federal_register_id on order; using title + summary');
+  }
+
+  // Fallback: title + summary
+  return truncate(
+    `Title: ${order.title ?? ''}\n\nSummary: ${order.summary ?? ''}`,
+    MAX_EO_CHARS
+  );
+}
+
 async function performAIAssessment(
   order: ExecutiveOrderRow,
   document: PolicyDocumentRow,
   provider: 'latimer' | 'perplexity'
 ): Promise<AssessmentResponse> {
-  // Executive orders store only title + summary (full text isn't kept), so we
-  // label them for the model. Policy documents hold full extracted PDF text.
-  const executiveOrderText = truncate(
-    `Title: ${order.title ?? ''}\n\nSummary: ${order.summary ?? ''}`,
-    MAX_EO_CHARS
-  );
+  // Executive order text prefers full Federal Register text, falling back to
+  // title + summary. Policy documents hold full extracted PDF text.
+  const executiveOrderText = await buildExecutiveOrderText(order);
   const policyDocumentText = truncate(document.content ?? '', MAX_POLICY_CHARS);
 
   const service = await getAIService(provider, getProviderConfig(provider));
   return service.assess({
     executiveOrderText,
-    policyDocumentText
+    policyDocumentText,
+    // Full-text prompts need room for a complete analysis — the default
+    // 500-token cap cut responses off before the final "Rating:" line.
+    maxTokens: 1024
   });
 }
 

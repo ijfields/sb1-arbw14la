@@ -72,6 +72,105 @@ export abstract class BaseAIService implements AIService {
     }
   }
 
+  // Patterns indicating the model could not actually perform the comparison
+  // (e.g. because the executive order had no summary/content). When these fire
+  // we force a neutral rating with a low-confidence floor rather than letting
+  // the keyword fallback misfire on words like "align" in the boilerplate.
+  private static readonly INSUFFICIENT_CONTENT_RE =
+    /cannot be (analyzed|assessed|determined)|no (summary|content|text) (is )?(available|provided)|missing data|unable to (analyze|assess|compare)|insufficient (information|data|content)/i;
+
+  // Matches an explicit rating statement in many shapes:
+  // "Rating: Positive", "**Rating: negative**", "the rating is neutral",
+  // "rating = positive", "rating - neutral".
+  private static readonly RATING_RE =
+    /rating\s*(?:is|:|=|-|—)?\s*\**\s*(positive|negative|neutral)/gi;
+
+  /**
+   * Extract a rating and confidence from an assessment response.
+   *
+   * 1. If the response signals it couldn't analyze the content, return neutral
+   *    with a low confidence floor.
+   * 2. Otherwise use the LAST explicit "Rating: ..." statement if present.
+   * 3. Only if no explicit rating exists, fall back to keyword scoring.
+   */
+  protected analyzeAssessment(
+    text: string,
+    baseConfidence = 0.7
+  ): { rating: AssessmentResponse['rating']; confidence: number } {
+    // 1. Insufficient-content check first
+    if (BaseAIService.INSUFFICIENT_CONTENT_RE.test(text)) {
+      return { rating: 'neutral', confidence: 0.2 };
+    }
+
+    const rating = this.analyzeResponse(text);
+    const confidence = this.calculateConfidence(text, baseConfidence);
+    return { rating, confidence };
+  }
+
+  protected analyzeResponse(text: string): AssessmentResponse['rating'] {
+    // Insufficient-content check takes precedence over any keyword scoring.
+    if (BaseAIService.INSUFFICIENT_CONTENT_RE.test(text)) {
+      return 'neutral';
+    }
+
+    // Find ALL explicit rating statements and use the LAST one. Models often
+    // restate the rating at the end, which is the authoritative one.
+    const matches = [...text.matchAll(BaseAIService.RATING_RE)];
+    if (matches.length > 0) {
+      const last = matches[matches.length - 1][1].toLowerCase();
+      return last as AssessmentResponse['rating'];
+    }
+
+    // Fall back to keyword scoring (merged term lists from all providers).
+    const normalized = text.toLowerCase();
+    const positiveTerms = [
+      'align', 'support', 'complement', 'reinforce', 'enhance', 'positive'
+    ];
+    const negativeTerms = [
+      'conflict', 'oppose', 'contradict', 'undermine', 'hinder', 'negative', 'misalign'
+    ];
+
+    let positiveScore = 0;
+    let negativeScore = 0;
+
+    positiveTerms.forEach(term => {
+      const found = normalized.match(new RegExp(term, 'g'));
+      if (found) positiveScore += found.length;
+    });
+
+    negativeTerms.forEach(term => {
+      const found = normalized.match(new RegExp(term, 'g'));
+      if (found) negativeScore += found.length;
+    });
+
+    if (positiveScore > negativeScore) return 'positive';
+    if (negativeScore > positiveScore) return 'negative';
+    return 'neutral';
+  }
+
+  protected calculateConfidence(text: string, baseConfidence = 0.7): number {
+    // Low-confidence floor when the model couldn't analyze the content.
+    if (BaseAIService.INSUFFICIENT_CONTENT_RE.test(text)) {
+      return 0.2;
+    }
+
+    let confidence = baseConfidence;
+
+    // Increase confidence based on analysis completeness
+    if (text.includes('Alignment:')) confidence += 0.1;
+    if (text.includes('Impact:')) confidence += 0.1;
+    if (text.includes('Rating:')) confidence += 0.1;
+
+    // Decrease confidence for uncertainty markers
+    const uncertaintyTerms = ['maybe', 'perhaps', 'unclear', 'uncertain', 'possible'];
+    uncertaintyTerms.forEach(term => {
+      if (text.toLowerCase().includes(term)) confidence -= 0.05;
+    });
+
+    // Ensure confidence stays within valid range
+    return Math.max(0.1, Math.min(1.0, confidence));
+  }
+
   protected shouldRetry(error: unknown): boolean {
     if (error instanceof Error) {
       const message = error.message.toLowerCase();

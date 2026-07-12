@@ -35,6 +35,119 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// In-memory cache for executive order full text, keyed by document number.
+// Simple size cap with oldest-eviction to bound memory usage.
+const EO_FULLTEXT_CACHE = new Map();
+const EO_FULLTEXT_CACHE_MAX = 100;
+
+const cacheFullText = (documentNumber, text) => {
+  // Evict oldest entries until we're under the cap (Map preserves insertion order)
+  while (EO_FULLTEXT_CACHE.size >= EO_FULLTEXT_CACHE_MAX) {
+    const oldestKey = EO_FULLTEXT_CACHE.keys().next().value;
+    EO_FULLTEXT_CACHE.delete(oldestKey);
+  }
+  EO_FULLTEXT_CACHE.set(documentNumber, text);
+};
+
+// Fetch the full text of an executive order (or any Federal Register document)
+// by its document number. The .txt endpoint has no CORS headers, so the browser
+// cannot fetch it directly — this route proxies and cleans it.
+// IMPORTANT: registered before the dev catch-all app.get('*') below.
+app.get('/api/eo-fulltext/:documentNumber', async (req, res) => {
+  const { documentNumber } = req.params;
+
+  // Validate against a safe pattern to avoid SSRF / path surprises
+  if (!/^[A-Za-z0-9._-]+$/.test(documentNumber)) {
+    return res.status(400).json({ message: 'Invalid document number' });
+  }
+
+  // Serve from cache when available
+  if (EO_FULLTEXT_CACHE.has(documentNumber)) {
+    console.log(`EO full text cache hit for ${documentNumber}`);
+    return res.json({ text: EO_FULLTEXT_CACHE.get(documentNumber) });
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    console.log(`Fetching EO full text metadata for ${documentNumber}`);
+
+    // Step 1: look up the raw_text_url for this document
+    const metaUrl = `https://www.federalregister.gov/api/v1/documents/${documentNumber}.json?fields[]=raw_text_url`;
+    const metaResponse = await fetch(metaUrl, {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal
+    });
+
+    if (!metaResponse.ok) {
+      clearTimeout(timeout);
+      console.error(`Federal Register metadata error for ${documentNumber}:`, metaResponse.status);
+      return res.status(metaResponse.status === 404 ? 404 : 502).json({
+        message: `Federal Register API error (status ${metaResponse.status})`
+      });
+    }
+
+    const meta = await metaResponse.json();
+    const rawTextUrl = meta?.raw_text_url;
+
+    if (!rawTextUrl) {
+      clearTimeout(timeout);
+      return res.status(404).json({ message: 'No raw text available for this document' });
+    }
+
+    // Defense against redirect surprises: only fetch from the expected host
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(rawTextUrl);
+    } catch (e) {
+      clearTimeout(timeout);
+      return res.status(502).json({ message: 'Invalid raw text URL returned by Federal Register' });
+    }
+
+    if (parsedUrl.host !== 'www.federalregister.gov') {
+      clearTimeout(timeout);
+      console.error(`Unexpected raw text host for ${documentNumber}:`, parsedUrl.host);
+      return res.status(502).json({ message: 'Unexpected raw text host' });
+    }
+
+    // Step 2: fetch the raw text
+    console.log(`Fetching EO raw text for ${documentNumber} from ${rawTextUrl}`);
+    const textResponse = await fetch(rawTextUrl, { signal: controller.signal });
+
+    clearTimeout(timeout);
+
+    if (!textResponse.ok) {
+      console.error(`Federal Register raw text error for ${documentNumber}:`, textResponse.status);
+      return res.status(502).json({ message: `Failed to fetch raw text (status ${textResponse.status})` });
+    }
+
+    const rawText = await textResponse.text();
+
+    // Clean up: strip HTML tags, drop non-printable control chars (the raw
+    // Federal Register text embeds NUL/page-break bytes), collapse whitespace
+    // runs, trim.
+    const cleaned = rawText
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    cacheFullText(documentNumber, cleaned);
+
+    return res.json({ text: cleaned });
+  } catch (error) {
+    clearTimeout(timeout);
+    if (error.name === 'AbortError') {
+      return res.status(504).json({ message: 'Request timeout' });
+    }
+    console.error(`EO full text error for ${documentNumber}:`, error);
+    return res.status(500).json({
+      message: error instanceof Error ? error.message : 'Internal server error'
+    });
+  }
+});
+
 // Middleware to validate API provider
 const validateProvider = (req, res, next) => {
   const provider = req.params.provider;

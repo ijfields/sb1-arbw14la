@@ -31,7 +31,7 @@ Provide a concise analysis focusing on:
 2. Impact (potential effects)
 3. Rating (explicitly state if positive, negative, or neutral)
 
-Please format your response with clear sections and end with an explicit rating statement.`
+Please format your response with clear sections. End your response with a final line formatted exactly as "Rating: positive", "Rating: negative", or "Rating: neutral".`
           })
         });
 
@@ -48,10 +48,12 @@ Please format your response with clear sections and end with an explicit rating 
           throw new Error('No assessment text in response');
         }
 
+        const { rating, confidence } = this.analyzeAssessment(assessmentText, 0.8);
+
         return {
           text: assessmentText,
-          rating: this.analyzeResponse(assessmentText),
-          confidence: 0.8,
+          rating,
+          confidence,
           metadata: {
             model: 'latimer',
             processingTime: data.processing_time,
@@ -64,44 +66,5 @@ Please format your response with clear sections and end with an explicit rating 
         throw error;
       }
     });
-  }
-
-  private analyzeResponse(text: string): AssessmentResponse['rating'] {
-    const normalized = text.toLowerCase();
-    
-    // First check for explicit rating
-    if (normalized.includes('rating: positive') || 
-        normalized.includes('rating:positive')) {
-      return 'positive';
-    }
-    if (normalized.includes('rating: negative') || 
-        normalized.includes('rating:negative')) {
-      return 'negative';
-    }
-    if (normalized.includes('rating: neutral') || 
-        normalized.includes('rating:neutral')) {
-      return 'neutral';
-    }
-
-    // Fall back to sentiment analysis
-    const positiveTerms = ['align', 'support', 'complement', 'reinforce', 'enhance'];
-    const negativeTerms = ['conflict', 'oppose', 'contradict', 'undermine', 'hinder'];
-    
-    let positiveScore = 0;
-    let negativeScore = 0;
-    
-    positiveTerms.forEach(term => {
-      const matches = normalized.match(new RegExp(term, 'g'));
-      if (matches) positiveScore += matches.length;
-    });
-    
-    negativeTerms.forEach(term => {
-      const matches = normalized.match(new RegExp(term, 'g'));
-      if (matches) negativeScore += matches.length;
-    });
-    
-    if (positiveScore > negativeScore) return 'positive';
-    if (negativeScore > positiveScore) return 'negative';
-    return 'neutral';
   }
 }
