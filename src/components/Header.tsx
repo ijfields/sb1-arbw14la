@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Scale } from 'lucide-react';
+import { Scale, ExternalLink } from 'lucide-react';
 import { getLatestPolicyDocuments } from '../services/documentService';
+import { POLICY_SOURCE_URLS } from '../config/policySources';
 
 interface PolicyNavItem {
   id: string;
@@ -38,16 +39,27 @@ export function Header() {
         <nav>
           <ul className="flex flex-wrap justify-end gap-x-6 gap-y-1">
             <li><a href="#orders" className="hover:text-blue-300 transition-colors">Executive Orders</a></li>
-            {policies.map(policy => (
-              <li key={policy.id}>
-                <a
-                  href={`#${policy.document_type}`}
-                  className="hover:text-blue-300 transition-colors"
-                >
-                  {policy.title}
-                </a>
-              </li>
-            ))}
+            {policies.map(policy => {
+              const sourceUrl = POLICY_SOURCE_URLS[policy.document_type];
+              return (
+                <li key={policy.id}>
+                  {sourceUrl ? (
+                    <a
+                      href={sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`View the original document: ${policy.title}`}
+                      className="inline-flex items-center hover:text-blue-300 transition-colors"
+                    >
+                      {policy.title}
+                      <ExternalLink className="w-3 h-3 ml-1" />
+                    </a>
+                  ) : (
+                    <span className="text-slate-300">{policy.title}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </nav>
       </div>
