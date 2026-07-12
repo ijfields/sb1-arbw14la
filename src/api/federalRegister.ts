@@ -18,7 +18,7 @@ export async function fetchExecutiveOrders(page = 1): Promise<FederalRegisterRes
 
   // Create params object with fields as separate entries
   const params = new URLSearchParams();
-  params.append('per_page', '20');
+  params.append('per_page', '100');
   params.append('page', page.toString());
   params.append('order', 'document_number');
   params.append('sort', 'desc');
