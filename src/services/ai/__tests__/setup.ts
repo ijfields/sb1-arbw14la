@@ -1,73 +1,68 @@
 import { beforeAll, afterAll, afterEach } from 'vitest';
-import { rest } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
 // Polyfill BroadcastChannel for Node.js environment
-if (typeof global.BroadcastChannel === 'undefined') {
-  global.BroadcastChannel = class {
-    constructor(name) {
+if (typeof globalThis.BroadcastChannel === 'undefined') {
+  globalThis.BroadcastChannel = class {
+    name: string;
+    constructor(name: string) {
       this.name = name;
     }
     postMessage() {}
     close() {}
-  };
+  } as any;
 }
 
 // Mock API handlers
 const handlers = [
   // Latimer API
-  rest.post('*/api/latimer/getCompletion', (req, res, ctx) => {
-    return res(
-      ctx.json({
-        message: {
-          content: 'Test assessment from Latimer. The documents show positive alignment.\n\nRating: positive'
-        }
-      })
-    );
+  http.post('*/api/latimer/getCompletion', () => {
+    return HttpResponse.json({
+      message: {
+        content: 'Test assessment from Latimer. The documents show positive alignment.\n\nRating: positive'
+      }
+    });
   }),
 
   // Perplexity API
-  rest.post('*/api/perplexity/chat/completions', (req, res, ctx) => {
-    return res(
-      ctx.json({
-        choices: [{
-          message: {
-            content: 'Test assessment from Perplexity. The documents show neutral alignment.\n\nRating: neutral'
-          },
-          finish_reason: 'stop'
-        }],
-        usage: {
-          total_tokens: 100
-        }
-      })
-    );
+  http.post('*/api/perplexity/chat/completions', () => {
+    return HttpResponse.json({
+      choices: [{
+        message: {
+          content: 'Test assessment from Perplexity. The documents show neutral alignment.\n\nRating: neutral'
+        },
+        finish_reason: 'stop'
+      }],
+      usage: {
+        total_tokens: 100
+      }
+    });
   }),
 
   // DeepSeek API
-  rest.post('*/api/deepseek/v1/chat/completions', async (req, res, ctx) => {
-    const body = await req.json();
-    
+  http.post('*/api/deepseek/v1/chat/completions', async ({ request }) => {
+    const body = await request.json() as any;
+
     // Check for API key
     if (!body.api_key) {
-      return res(
-        ctx.status(401),
-        ctx.json({ error: { message: 'Authentication Fails (governor)' } })
+      return HttpResponse.json(
+        { error: { message: 'Authentication Fails (governor)' } },
+        { status: 401 }
       );
     }
 
-    return res(
-      ctx.json({
-        choices: [{
-          message: {
-            content: 'Test assessment from DeepSeek. The documents show negative alignment.\n\nRating: negative'
-          },
-          finish_reason: 'stop'
-        }],
-        usage: {
-          total_tokens: 100
-        }
-      })
-    );
+    return HttpResponse.json({
+      choices: [{
+        message: {
+          content: 'Test assessment from DeepSeek. The documents show negative alignment.\n\nRating: negative'
+        },
+        finish_reason: 'stop'
+      }],
+      usage: {
+        total_tokens: 100
+      }
+    });
   })
 ];
 

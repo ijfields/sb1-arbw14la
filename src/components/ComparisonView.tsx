@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertCircle } from 'lucide-react';
 import type { ExecutiveOrder, PolicyProposal } from '../types';
 import { AssessmentView } from './AssessmentView';
@@ -8,7 +7,7 @@ interface ComparisonViewProps {
   relatedProposals: PolicyProposal[];
 }
 
-export function ComparisonView({ order, relatedProposals }: ComparisonViewProps) {
+export function ComparisonView({ order }: ComparisonViewProps) {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',

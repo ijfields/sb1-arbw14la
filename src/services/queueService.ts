@@ -80,8 +80,8 @@ export async function processQueue() {
 
 async function processQueueItem(item: QueueItem) {
   try {
-    // Update status to processing
-    await updateQueueItemStatus(item.id, 'processing');
+    // Update status to processing (bump attempts once per processing attempt)
+    await updateQueueItemStatus(item.id, 'processing', undefined, item.attempts + 1);
 
     // Get order and policy document content
     const [order, document] = await Promise.all([
@@ -126,16 +126,22 @@ async function processQueueItem(item: QueueItem) {
 async function updateQueueItemStatus(
   id: string,
   status: QueueItem['status'],
-  error?: string
+  error?: string,
+  attempts?: number
 ) {
+  const update: Record<string, unknown> = {
+    status,
+    error,
+    updated_at: new Date().toISOString()
+  };
+
+  if (attempts !== undefined) {
+    update.attempts = attempts;
+  }
+
   const { error: updateError } = await supabase
     .from('assessment_queue')
-    .update({
-      status,
-      error,
-      attempts: supabase.sql`attempts + 1`,
-      updated_at: new Date().toISOString()
-    })
+    .update(update)
     .eq('id', id);
 
   if (updateError) throw updateError;
@@ -165,9 +171,9 @@ async function getPolicyDocument(id: string) {
 }
 
 async function performAIAssessment(
-  order: any,
-  document: any,
-  provider: 'latimer' | 'perplexity'
+  _order: any,
+  _document: any,
+  _provider: 'latimer' | 'perplexity'
 ) {
   // TODO: Implement AI provider integration
   return {
@@ -241,7 +247,7 @@ function calculateFinalAssessment(assessments: any[]) {
   };
 
   const weightedSum = assessments.reduce((sum, assessment) => {
-    return sum + ratingScores[assessment.rating] * assessment.confidence;
+    return sum + ratingScores[assessment.rating as keyof typeof ratingScores] * assessment.confidence;
   }, 0);
 
   const avgConfidence = assessments.reduce((sum, assessment) => {

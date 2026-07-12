@@ -38,7 +38,7 @@ export async function testConnection(retries = 3): Promise<{ success: boolean; e
       console.log(`Connection attempt ${attempt}/${retries}`);
       
       // First test basic connectivity
-      const { data: healthCheck, error: healthError } = await supabase
+      const { error: healthError } = await supabase
         .from('executive_orders')
         .select('count')
         .limit(1)

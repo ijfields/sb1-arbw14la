@@ -1,10 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { FileText, AlertCircle, CheckCircle, XCircle, Loader2, MinusCircle, ExternalLink, BookOpen, X, Zap, RefreshCw } from 'lucide-react';
+import { FileText, AlertCircle, CheckCircle, XCircle, Loader2, MinusCircle, BookOpen, Zap, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ExecutiveOrder } from '../types';
-import { supabase } from '../lib/supabase';
-import { getPolicyDocumentPDF } from '../services/documentService';
 import { testAIService } from '../services/ai/test';
 import type { AIProvider } from '../services/ai/types';
 
@@ -12,15 +10,16 @@ interface AssessmentViewProps {
   executiveOrder: ExecutiveOrder;
 }
 
-export function AssessmentView({ executiveOrder }: AssessmentViewProps) {
+export function AssessmentView({}: AssessmentViewProps) {
   const [testingAI, setTestingAI] = useState(false);
   const [testResults, setTestResults] = useState<{
     latimer?: { success: boolean; message?: string; result?: any };
     perplexity?: { success: boolean; message?: string; result?: any };
     deepseek?: { success: boolean; message?: string; result?: any };
+    error?: { success: boolean; message?: string; result?: any };
   }>({});
   const [needsRefresh, setNeedsRefresh] = useState(false);
-  const [lastSuccessfulTest, setLastSuccessfulTest] = useState<number | null>(null);
+  const [, setLastSuccessfulTest] = useState<number | null>(null);
 
   const checkConnectionStatus = useCallback(async () => {
     try {
@@ -61,7 +60,7 @@ export function AssessmentView({ executiveOrder }: AssessmentViewProps) {
 
       // Test providers sequentially to avoid overwhelming the server
       const providers: AIProvider[] = ['latimer', 'perplexity', 'deepseek'];
-      const results: Record<AIProvider, any> = {};
+      const results: Partial<Record<AIProvider, any>> = {};
       let hasError = false;
 
       for (const provider of providers) {

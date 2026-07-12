@@ -1,3 +1,5 @@
+import type { FederalRegisterResponse, ExecutiveOrder } from '../types';
+
 const BASE_URL = 'https://www.federalregister.gov/api/v1';
 
 export async function fetchExecutiveOrders(page = 1): Promise<FederalRegisterResponse> {
