@@ -69,7 +69,15 @@ export function AssessmentView({ executiveOrder }: AssessmentViewProps) {
       try {
         const docs = await getPolicyDocuments();
         if (active && docs) {
-          setDocuments(docs as PolicyDocumentOption[]);
+          // The table holds duplicate uploads per type; getPolicyDocuments
+          // orders by created_at desc, so keep only the newest of each type.
+          const latestPerType = new Map<string, PolicyDocumentOption>();
+          for (const doc of docs as PolicyDocumentOption[]) {
+            if (!latestPerType.has(doc.document_type)) {
+              latestPerType.set(doc.document_type, doc);
+            }
+          }
+          setDocuments([...latestPerType.values()]);
         }
       } catch (error) {
         console.error('Failed to load policy documents:', error);
