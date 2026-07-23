@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { adminPost } from './adminApi';
 import { extractTextFromPDF } from './pdfService';
 
 const MAX_PDF_SIZE = 10 * 1024 * 1024; // 10MB
@@ -63,16 +64,14 @@ export async function uploadPolicyDocument(
       base64Size: base64Data.length
     });
 
-    const { error } = await supabase
-      .from('policy_documents')
-      .insert({
-        title,
-        document_type: documentType,
-        content: textContent,
-        pdf_data: base64Data
-      });
-
-    if (error) throw error;
+    // PDF text extraction stays client-side (above); only the write moves to
+    // the server-side admin API, which inserts with the service-role key.
+    await adminPost('/documents', {
+      title,
+      document_type: documentType,
+      content: textContent,
+      pdf_data: base64Data
+    });
 
     return { success: true };
   } catch (error) {

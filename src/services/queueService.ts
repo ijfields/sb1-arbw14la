@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { adminPost } from './adminApi';
 import { getAIService } from './ai/factory';
 import { getProviderConfig } from './ai/config';
 import type { AssessmentResponse } from './ai/types';
@@ -25,11 +26,6 @@ interface ExecutiveOrderRow {
 interface PolicyDocumentRow {
   id: string;
   content: string;
-}
-
-interface AIAssessmentRow {
-  rating: 'positive' | 'neutral' | 'negative';
-  confidence: number;
 }
 
 // Truncation limits to keep prompts sane
@@ -61,39 +57,21 @@ export async function queueAssessment(
     ? Math.floor(new Date(order.signing_date).getTime() / 86_400_000)
     : 0;
 
-  // Queue assessment for both providers
-  await Promise.all(
-    ACTIVE_PROVIDERS.map(provider =>
-      createQueueItem(executiveOrderId, policyDocumentId, provider, priority)
-    )
-  );
-}
-
-async function createQueueItem(
-  executiveOrderId: string,
-  policyDocumentId: string,
-  provider: 'latimer' | 'perplexity',
-  priority: number
-) {
-  // Upsert so re-running a pair resets it to pending instead of failing the
+  // Queue assessment for both providers in one server-side upsert. The admin
+  // endpoint writes with the service-role key; the upsert resets any existing
+  // pair back to pending instead of failing the
   // UNIQUE(executive_order_id, policy_document_id, provider) constraint.
-  const { error } = await supabase
-    .from('assessment_queue')
-    .upsert(
-      {
-        executive_order_id: executiveOrderId,
-        policy_document_id: policyDocumentId,
-        provider,
-        priority,
-        status: 'pending',
-        attempts: 0,
-        error: null,
-        updated_at: new Date().toISOString()
-      },
-      { onConflict: 'executive_order_id,policy_document_id,provider' }
-    );
-
-  if (error) throw error;
+  await adminPost('/queue/upsert', {
+    items: ACTIVE_PROVIDERS.map(provider => ({
+      executive_order_id: executiveOrderId,
+      policy_document_id: policyDocumentId,
+      provider,
+      priority,
+      status: 'pending',
+      attempts: 0,
+      error: null
+    }))
+  });
 }
 
 export interface ProcessQueueSummary {
@@ -160,14 +138,10 @@ async function processQueueItem(item: QueueItem): Promise<boolean> {
       assessment
     );
 
-    // Mark queue item as completed
+    // Mark queue item as completed. The server recomputes and upserts the
+    // impact_assessments rollup as part of storeAssessment, so there is no
+    // separate client-side rollup step.
     await updateQueueItemStatus(item.id, 'completed');
-
-    // Update impact assessment
-    await updateImpactAssessment(
-      item.executive_order_id,
-      item.policy_document_id
-    );
 
     return true;
   } catch (error) {
@@ -197,22 +171,13 @@ async function updateQueueItemStatus(
   error?: string,
   attempts?: number
 ) {
-  const update: Record<string, unknown> = {
+  // Status updates go through the server-side admin API (service-role key).
+  await adminPost('/queue/status', {
+    id,
     status,
-    error,
-    updated_at: new Date().toISOString()
-  };
-
-  if (attempts !== undefined) {
-    update.attempts = attempts;
-  }
-
-  const { error: updateError } = await supabase
-    .from('assessment_queue')
-    .update(update)
-    .eq('id', id);
-
-  if (updateError) throw updateError;
+    error: error ?? null,
+    ...(attempts !== undefined ? { attempts } : {})
+  });
 }
 
 // Helper functions
@@ -315,84 +280,17 @@ async function storeAssessment(
     confidence: number;
   }
 ) {
-  // Upsert so re-running a pair overwrites the previous result instead of
-  // violating the UNIQUE(executive_order_id, policy_document_id, provider) index.
-  const { error } = await supabase
-    .from('ai_assessments')
-    .upsert(
-      {
-        executive_order_id: executiveOrderId,
-        policy_document_id: policyDocumentId,
-        provider,
-        assessment_text: assessment.text,
-        rating: assessment.rating,
-        confidence: assessment.confidence
-      },
-      { onConflict: 'executive_order_id,policy_document_id,provider' }
-    );
-
-  if (error) throw error;
-}
-
-async function updateImpactAssessment(
-  executiveOrderId: string,
-  policyDocumentId: string
-) {
-  // Get all AI assessments for this combination
-  const { data: assessments, error } = await supabase
-    .from('ai_assessments')
-    .select('*')
-    .eq('executive_order_id', executiveOrderId)
-    .eq('policy_document_id', policyDocumentId);
-
-  if (error) throw error;
-  if (!assessments?.length) return;
-
-  // Calculate final rating based on weighted average
-  const finalAssessment = calculateFinalAssessment(assessments as AIAssessmentRow[]);
-
-  // Update or insert final assessment
-  const { error: upsertError } = await supabase
-    .from('impact_assessments')
-    .upsert(
-      {
-        executive_order_id: executiveOrderId,
-        policy_document_id: policyDocumentId,
-        final_rating: finalAssessment.rating,
-        confidence: finalAssessment.confidence,
-        last_updated: new Date().toISOString()
-      },
-      { onConflict: 'executive_order_id,policy_document_id' }
-    );
-
-  if (upsertError) throw upsertError;
-}
-
-function calculateFinalAssessment(assessments: AIAssessmentRow[]) {
-  // Simple averaging for now - can be made more sophisticated
-  const ratingScores = {
-    positive: 1,
-    neutral: 0,
-    negative: -1
-  };
-
-  const weightedSum = assessments.reduce((sum, assessment) => {
-    return sum + ratingScores[assessment.rating] * assessment.confidence;
-  }, 0);
-
-  const avgConfidence = assessments.reduce((sum, assessment) => {
-    return sum + assessment.confidence;
-  }, 0) / assessments.length;
-
-  const avgScore = weightedSum / assessments.length;
-
-  let finalRating: 'positive' | 'neutral' | 'negative';
-  if (avgScore > 0.3) finalRating = 'positive';
-  else if (avgScore < -0.3) finalRating = 'negative';
-  else finalRating = 'neutral';
-
-  return {
-    rating: finalRating,
-    confidence: avgConfidence
-  };
+  // Persist through the server-side admin API (service-role key). The server
+  // upserts ai_assessments (re-running a pair overwrites the previous result
+  // via the UNIQUE(executive_order_id, policy_document_id, provider) index) and
+  // recomputes + upserts the impact_assessments rollup so it cannot be spoofed
+  // independently of the underlying AI assessments.
+  await adminPost('/assessments', {
+    executive_order_id: executiveOrderId,
+    policy_document_id: policyDocumentId,
+    provider,
+    assessment_text: assessment.text,
+    rating: assessment.rating,
+    confidence: assessment.confidence
+  });
 }

@@ -10,9 +10,19 @@ class WhiteHouseActions:
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
-        # Initialize Supabase client
+        # Initialize Supabase client.
+        # Writes to title_matches must use the service-role key: the anon key's
+        # write policies are revoked in issue #3. Fall back to the anon key (with
+        # a warning) so the script still runs in dev until the service key is set.
         supabase_url = os.environ.get("VITE_SUPABASE_URL")
-        supabase_key = os.environ.get("VITE_SUPABASE_ANON_KEY")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        if not supabase_key:
+            supabase_key = os.environ.get("VITE_SUPABASE_ANON_KEY")
+            print(
+                "WARNING: SUPABASE_SERVICE_ROLE_KEY not set; falling back to "
+                "VITE_SUPABASE_ANON_KEY. Inserts will fail once the anon write "
+                "policies are revoked (issue #3)."
+            )
         self.supabase: Client = create_client(supabase_url, supabase_key)
 
     def get_presidential_actions(self, max_pages=5):

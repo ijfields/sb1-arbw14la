@@ -1,6 +1,13 @@
 import { supabase } from '../lib/supabase';
+import { adminPost } from './adminApi';
 import { fetchExecutiveOrders, transformFederalRegisterData } from '../api/federalRegister';
 import type { ExecutiveOrder, TitleMatch } from '../types';
+
+interface OrderBatchResult {
+  inserted: number;
+  updated: number;
+  errors: Array<{ id?: string; number?: string; error: string }>;
+}
 
 // Safety bound: 20 pages x 100 per page covers the ~1,550 executive orders
 // the Federal Register currently exposes, with headroom.
@@ -136,41 +143,18 @@ export async function syncOrders() {
         }
       }
 
-      if (inserts.length > 0) {
-        const { error: insertError } = await supabase
-          .from('executive_orders')
-          .insert(inserts);
-
-        if (insertError) {
-          // Bulk insert failed — retry row by row so one bad record
-          // doesn't sink the whole page.
-          console.error('Bulk insert failed, retrying row by row:', insertError.message);
-          for (const row of inserts) {
-            const { error: rowError } = await supabase
-              .from('executive_orders')
-              .insert(row);
-            if (rowError) {
-              console.error('Error inserting order:', { number: row.number, error: rowError.message });
-              errorCount++;
-            } else {
-              successCount++;
-            }
-          }
-        } else {
-          successCount += inserts.length;
-        }
-      }
-
-      for (const update of updates) {
-        const { error: updateError } = await supabase
-          .from('executive_orders')
-          .update(update.data)
-          .eq('id', update.id);
-        if (updateError) {
-          console.error('Error updating order:', { number: update.data.number, error: updateError.message });
-          errorCount++;
-        } else {
-          successCount++;
+      // One server-side batch call per page: the admin endpoint performs the
+      // bulk insert (with per-row fallback) and per-row updates using the
+      // service-role key. Writes no longer use the public anon key.
+      if (inserts.length > 0 || updates.length > 0) {
+        const result = await adminPost<OrderBatchResult>('/orders/batch', {
+          inserts,
+          updates
+        });
+        successCount += result.inserted + result.updated;
+        errorCount += result.errors.length;
+        for (const e of result.errors) {
+          console.error('Error writing order:', e);
         }
       }
 
@@ -193,10 +177,13 @@ export async function syncOrders() {
 
     // Process any White House matches that don't have a Federal Register match yet
     if (whMatches) {
+      const pendingInserts: Array<Record<string, string | null>> = [];
+
       for (const whMatch of whMatches) {
         if (!whMatch.federal_register_id) {
           try {
-            // Check if an order with this White House URL already exists
+            // Check if an order with this White House URL already exists (SELECT
+            // stays client-side).
             const { data: existingOrder } = await supabase
               .from('executive_orders')
               .select('id')
@@ -204,27 +191,46 @@ export async function syncOrders() {
               .maybeSingle();
 
             if (!existingOrder) {
-              const orderData = {
+              pendingInserts.push({
                 number: `PENDING-${Date.now()}`, // Temporary number until matched
                 title: whMatch.whitehouse_title,
+                federal_register_id: null,
+                federal_register_url: null,
                 signing_date: whMatch.whitehouse_date,
+                publication_date: null,
+                pdf_url: null,
+                summary: 'Pending Federal Register match',
+                category: null,
+                status: 'pending',
                 whitehouse_title: whMatch.whitehouse_title,
                 whitehouse_date: whMatch.whitehouse_date,
-                whitehouse_url: whMatch.whitehouse_url,
-                status: 'pending' as const,
-                summary: 'Pending Federal Register match'
-              };
-
-              const { error: insertError } = await supabase
-                .from('executive_orders')
-                .insert(orderData);
-
-              if (insertError) throw insertError;
-              successCount++;
+                whitehouse_url: whMatch.whitehouse_url
+              });
             }
           } catch (error) {
             console.error('Error processing White House match:', error);
             errorCount++;
+          }
+        }
+      }
+
+      // Insert the pending rows server-side in batches (max 200 per call).
+      if (pendingInserts.length > 0) {
+        for (let i = 0; i < pendingInserts.length; i += 200) {
+          const chunk = pendingInserts.slice(i, i + 200);
+          try {
+            const result = await adminPost<OrderBatchResult>('/orders/batch', {
+              inserts: chunk,
+              updates: []
+            });
+            successCount += result.inserted;
+            errorCount += result.errors.length;
+            for (const e of result.errors) {
+              console.error('Error inserting White House match:', e);
+            }
+          } catch (error) {
+            console.error('Error inserting White House matches:', error);
+            errorCount += chunk.length;
           }
         }
       }

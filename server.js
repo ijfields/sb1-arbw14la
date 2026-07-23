@@ -6,6 +6,7 @@ import fs from 'fs';
 import * as dotenv from 'dotenv';
 import { createServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
+import adminApi from './server/adminApi.js';
 
 // Load environment variables
 dotenv.config();
@@ -18,7 +19,9 @@ const port = process.env.PORT || 3000;
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Middleware setup
-app.use(express.json());
+// Body limit raised from the 100kb default: policy-document uploads carry
+// ~13MB of base64 PDF through POST /api/admin/documents.
+app.use(express.json({ limit: '20mb' }));
 app.use(cors({
   origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
   credentials: true
@@ -34,6 +37,11 @@ if (fs.existsSync(distPath)) {
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Admin write API — server-side writes behind the Supabase service-role key
+// (issue #3). Mounted here, before the dev catch-all app.get('*'); these are
+// POST routes so the catch-all does not shadow them, but keep them grouped.
+app.use('/api/admin', adminApi);
 
 // In-memory cache for executive order full text, keyed by document number.
 // Simple size cap with oldest-eviction to bound memory usage.
